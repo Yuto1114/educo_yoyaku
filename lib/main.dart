@@ -3,6 +3,7 @@ import 'package:educo_yoyaku/router/router.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +16,6 @@ void main() async {
   runApp(const MyApp());
 }
 
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -26,21 +26,21 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         // ベースとなる明るいテーマ
         brightness: Brightness.light,
-        
+
         // メインカラーをオレンジに設定
         primaryColor: const Color(0xFFFF5722),
         primarySwatch: Colors.deepOrange,
-        
+
         // アクセントカラー
         colorScheme: ColorScheme.light(
           primary: const Color(0xFFFF5722),
           secondary: const Color(0xFFFF8A65),
           surface: Colors.white,
         ),
-        
+
         // 背景色を白に
         scaffoldBackgroundColor: Colors.white,
-        
+
         // AppBarのテーマ
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFFFF5722),
@@ -48,7 +48,7 @@ class MyApp extends StatelessWidget {
           elevation: 0,
           iconTheme: IconThemeData(color: Colors.white),
         ),
-        
+
         // ボタンのテーマ
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
@@ -60,7 +60,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        
+
         // カードのテーマ
         cardTheme: CardTheme(
           elevation: 2,
@@ -68,7 +68,7 @@ class MyApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        
+
         // テキストのテーマ
         textTheme: const TextTheme(
           headlineMedium: TextStyle(
@@ -84,6 +84,14 @@ class MyApp extends StatelessWidget {
         ),
       ),
       routerConfig: router,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('ja'), // 日本語
+      ],
     );
   }
 }
