@@ -1,5 +1,5 @@
 import 'package:educo_yoyaku/screens/attendance_screen.dart';
-import 'package:educo_yoyaku/screens/home_screen.dart';
+import 'package:educo_yoyaku/screens/calendar_screen.dart';
 import 'package:educo_yoyaku/screens/line_user_list_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -13,7 +13,7 @@ class Navibar extends StatefulWidget {
 
 class _NavibarState extends State<Navibar> {
   static const _screens = [
-    HomeScreen(),
+    CalendarScreen(),
     AttendanceScreen(),
     LineUserListScreen(),
   ];
@@ -38,7 +38,8 @@ class _NavibarState extends State<Navibar> {
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
           items: const <BottomNavigationBarItem>[
-            BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: 'カレンダー'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.calendar_month), label: 'カレンダー'),
             BottomNavigationBarItem(icon: Icon(Icons.assignment), label: '出席簿'),
             BottomNavigationBarItem(icon: Icon(Icons.person), label: 'アカウント'),
           ],
