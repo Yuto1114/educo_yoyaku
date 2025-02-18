@@ -1,16 +1,32 @@
 # educo_yoyaku
+予約管理アプリ
 
-予約アプリ
+## 概要
+ロボット・プログラミング教室で使う予約管理アプリ(スマホ版は閲覧専用)です。
 
-## Getting Started
+## 機能
+- LINE BOTから予約を取得 → リストビューで表示
+- Educo予約で予約人数を確認 → カレンダーの日付部分で人数を表示
+- 生徒の引き継ぎ項目の伝達 → アカウント詳細ページで表示
+- 出席確認 → Todoリストのようなチェックボックスで表示
 
-This project is a starting point for a Flutter application.
+## 経緯
+ロボット・プログラミング教室では生徒の進度別にコースが分かれており、もちろん求められるサポートの手厚さも違います。同じ予約人数でも、適切なスタッフ数は変わるということが起こりうるのです。このような、汎用的な予約アプリではカバーできない用件を満たした予約アプリを作ろうと思い、educoを作っています。
 
-A few resources to get you started if this is your first Flutter project:
+## スマホアプリで、できること・できないこと
+### できること
+- 予約情報の閲覧
+- 出席チェック
+- 生徒の情報閲覧
+### できないこと
+- 予約枠の設定
+- 教室情報の編集
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## 使用技術
+- Flutter 3.27.4
+- データベース Firebase Firestore
+- 認証システム Firebase Authentication
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 実装予定
+- テスト
+- 管理サイト(webアプリ)
