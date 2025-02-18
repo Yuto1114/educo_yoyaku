@@ -14,8 +14,8 @@ class _LoginPageState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final authService = AuthService();
-  String error = '';
-  bool isLoading = false;
+  String error = ''; // エラー格納変数
+  bool isLoading = false; // ローディングのインジケーターの表示フラグ
 
   void _login() async {
     setState(() {

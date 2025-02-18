@@ -4,13 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 
 class LineUser extends Equatable {
-  final String userId;
-  final String displayName;
-  final String language;
-  final String lineId;
-  final String pictureUrl;
-  final String statusMessage;
-  final String course;
+  final String userId; // educo上でのユーザーID
+  final String displayName; // LINEアプリ上でのユーザー名
+  final String language; // LINEアプリの言語
+  final String lineId; // LINEのユーザーID
+  final String pictureUrl; // LINEのプロフィール画像URL
+  final String statusMessage; // LINEのステータスメッセージ
+  final String course; // 所属コース
 
   const LineUser({
     required this.userId,
