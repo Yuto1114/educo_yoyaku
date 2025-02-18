@@ -43,7 +43,7 @@ class MyApp extends StatelessWidget {
 
         // AppBarのテーマ
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFFF5722),
+          backgroundColor: Color.fromARGB(255, 255, 134, 53),
           foregroundColor: Colors.white,
           elevation: 0,
           iconTheme: IconThemeData(color: Colors.white),
