@@ -23,6 +23,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'Educo 予約',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         // ベースとなる明るいテーマ
         brightness: Brightness.light,
