@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:educo_yoyaku/models/classroom.dart';
 import 'package:educo_yoyaku/models/reservation.dart';
 
 class ReservationRepository {
@@ -12,10 +13,16 @@ class ReservationRepository {
     return Reservation.fromFirestore(doc);
   }
 
-  // 全予約取得
-  Future<List<Reservation>> getAllReservations() async {
+  // 教室ごとの予約全取得
+  Future<List<Reservation>> getAllReservations(Classroom classroom) async {
     final snapshot = await _firestore.collection('reservations').get();
-    return snapshot.docs.map((doc) => Reservation.fromFirestore(doc)).toList();
+    final reservations =
+        snapshot.docs.map((doc) => Reservation.fromFirestore(doc)).toList();
+    // classroomIdが一致するもののみ返す
+    return reservations
+        .where(
+            (reservation) => reservation.classroomId == classroom.classroomId)
+        .toList();
   }
 
   // 日付で予約取得

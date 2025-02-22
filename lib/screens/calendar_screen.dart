@@ -14,10 +14,11 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final _storage = const FlutterSecureStorage();
   final ClassroomRepository _classroomRepository = ClassroomRepository();
   final LineUserRepository lineUserRepository = LineUserRepository();
-  Classroom? _selectedClassroom;
+  Classroom? selectedClassroom;
 
   @override
   void initState() {
@@ -29,7 +30,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     List<Classroom> classrooms = await _classroomRepository.getClassrooms();
     if (classrooms.isNotEmpty) {
       setState(() {
-        _selectedClassroom = classrooms.first;
+        selectedClassroom = classrooms.first;
       });
     }
   }
@@ -38,7 +39,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     List<Classroom> classrooms = await _classroomRepository.getClassrooms();
     if (!mounted) return;
     showModalBottomSheet(
-      backgroundColor: const Color.fromARGB(255, 255, 247, 243),
+      backgroundColor: Theme.of(context).secondaryHeaderColor,
       context: context,
       builder: (BuildContext context) {
         return ListView.builder(
@@ -76,7 +77,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
                 onTap: () {
                   setState(() {
-                    _selectedClassroom = classrooms[index];
+                    selectedClassroom = classrooms[index];
                   });
                   Navigator.pop(context);
                 },
@@ -98,7 +99,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
+        leading: IconButton(
+          onPressed: () {
+            _scaffoldKey.currentState!.openDrawer();
+          },
+          icon: Icon(Icons.menu),
+          iconSize: 30,
+        ),
         title: Text(
           'Educo',
           style: GoogleFonts.kiwiMaru(),
@@ -116,7 +125,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ),
             onPressed: _showClassroomSelection,
             child: Text(
-              _selectedClassroom?.classroomName ?? '選択してください',
+              selectedClassroom?.classroomName ?? '選択してください',
               style: GoogleFonts.zenMaruGothic(
                 fontSize: 19,
                 color: Colors.white,
@@ -125,23 +134,49 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ],
       ),
+      drawer: Drawer(
+        backgroundColor: Theme.of(context).secondaryHeaderColor,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: <Widget>[
+            SizedBox(
+              height: 150, // ここで高さを調整します
+              child: DrawerHeader(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).appBarTheme.backgroundColor,
+                ),
+                child: Text(
+                  'メニュー',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                  ),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.logout, color: Theme.of(context).primaryColor,),
+              title: Text('ログアウト', style: TextStyle(color: Theme.of(context).primaryColor),),
+              onTap: () {
+                _logout(context);
+              },
+            ),
+          ],
+        ),
+      ),
       body: Center(
         child: SingleChildScrollView(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.start,
             children: <Widget>[
-              if (_selectedClassroom != null)
+              if (selectedClassroom != null)
                 Calendar(
-                  classroom: _selectedClassroom!,
+                  classroom: selectedClassroom!,
                   height: 600,
                   lineUserRepository: lineUserRepository,
                 )
               else
                 Text('教室を選択してください'),
-              ElevatedButton(
-                onPressed: () => _logout(context),
-                child: Text('ログアウト'),
-              ),
             ],
           ),
         ),

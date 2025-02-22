@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,11 +44,12 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: Colors.white,
 
         // AppBarのテーマ
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color.fromARGB(255, 255, 134, 53),
+        appBarTheme: AppBarTheme(
+          backgroundColor: const Color.fromARGB(255, 255, 134, 53),
           foregroundColor: Colors.white,
           elevation: 0,
-          iconTheme: IconThemeData(color: Colors.white),
+          iconTheme: const IconThemeData(color: Colors.white),
+          titleTextStyle: GoogleFonts.kiwiMaru(fontSize: 23),
         ),
 
         // ボタンのテーマ
