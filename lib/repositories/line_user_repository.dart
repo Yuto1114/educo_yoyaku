@@ -3,7 +3,7 @@ import 'package:educo_yoyaku/models/line_user.dart';
 
 class LineUserRepository {
   final _firestore = FirebaseFirestore.instance;
-  
+
   // 単一ユーザー取得
   Future<LineUser?> getUser(String userId) async {
     final doc = await _firestore.collection('line_users').doc(userId).get();
@@ -12,18 +12,19 @@ class LineUserRepository {
   }
 
   // 全ユーザー取得
-  Future<List<LineUser>> getAllUsers() async {
-    final snapshot = await _firestore.collection('line_users').get();
+  Future<List<LineUser>> getAllUsers({bool isSortedByDict = true}) async {
+    Query query = _firestore.collection('line_users');
+    if (isSortedByDict) {
+      query = query.orderBy('displayName');
+    }
+    final snapshot = await query.get();
     return snapshot.docs.map((doc) => LineUser.fromFirestore(doc)).toList();
   }
 
   // リアルタイム監視
   Stream<List<LineUser>> watchUsers() {
-    return _firestore
-        .collection('line_users')
-        .snapshots()
-        .map((snapshot) => 
-            snapshot.docs.map((doc) => LineUser.fromFirestore(doc)).toList());
+    return _firestore.collection('line_users').snapshots().map((snapshot) =>
+        snapshot.docs.map((doc) => LineUser.fromFirestore(doc)).toList());
   }
 
   // ユーザー追加/更新

@@ -5,8 +5,12 @@ class ClassroomRepository {
   final _firestore = FirebaseFirestore.instance;
 
   // 全クラスルーム取得
-  Future<List<Classroom>> getClassrooms() async {
-    final snapshot = await _firestore.collection('classrooms').get();
+  Future<List<Classroom>> getClassrooms({bool isSortedByName = true}) async {
+    Query query = _firestore.collection('classrooms');
+    if (isSortedByName) {
+      query = query.orderBy('name');
+    }
+    final snapshot = await query.get();
     return snapshot.docs.map((doc) => Classroom.fromFirestore(doc)).toList();
   }
 
