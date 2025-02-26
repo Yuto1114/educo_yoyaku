@@ -149,8 +149,9 @@ class _CalendarState extends State<Calendar> {
       List<Reservation> reservations) async {
     isShowingMordal = true;
     final List<LineUser> lineUsers = [];
-    final List<String> classroomNames = [];
     final classroomRepository = ClassroomRepository();
+    final classroom = await classroomRepository
+        .getClassroomWithSlotsById(widget.classroom.classroomId);
 
     for (var reservation in reservations) {
       final lineUser =
@@ -158,18 +159,10 @@ class _CalendarState extends State<Calendar> {
       if (lineUser != null) {
         lineUsers.add(lineUser);
       }
-
-      final classroom =
-          await classroomRepository.getClassroomById(reservation.classroomId);
-      if (classroom != null) {
-        classroomNames.add(classroom.classroomName);
-      } else {
-        classroomNames.add('Unknown Classroom');
-      }
     }
 
     // 予約を開始時間でグループ化
-    final Map<DateTime, List<int>> groupedReservations = {};
+    final Map<DateTime, Map<String, List<int>>> groupedReservations = {};
     for (var i = 0; i < reservations.length; i++) {
       final startTime = DateTime(
         reservations[i].startTime.year,
@@ -178,10 +171,18 @@ class _CalendarState extends State<Calendar> {
         reservations[i].startTime.hour,
         reservations[i].startTime.minute,
       );
+      final courseName = reservations[i].courseName;
+
       if (groupedReservations.containsKey(startTime)) {
-        groupedReservations[startTime]!.add(i);
+        if (groupedReservations[startTime]!.containsKey(courseName)) {
+          groupedReservations[startTime]![courseName]!.add(i);
+        } else {
+          groupedReservations[startTime]![courseName] = [i];
+        }
       } else {
-        groupedReservations[startTime] = [i];
+        groupedReservations[startTime] = {
+          courseName: [i]
+        };
       }
     }
 
@@ -205,13 +206,18 @@ class _CalendarState extends State<Calendar> {
                 ),
                 SizedBox(height: 16),
                 if (reservations.isEmpty)
-                  Text('予約はありません')
+                  Column(
+                    children: [
+                      Text('予約はありません'),
+                      SizedBox(height: 35),
+                    ],
+                  )
                 else
                   Column(
                     children: groupedReservations.entries.map(
                       (entry) {
                         final startTime = entry.key;
-                        final indices = entry.value;
+                        final courseGroups = entry.value;
                         return Container(
                           width: MediaQuery.of(context).size.width * 0.8,
                           margin: EdgeInsets.symmetric(vertical: 8),
@@ -230,16 +236,80 @@ class _CalendarState extends State<Calendar> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              ...indices.map(
-                                (index) {
-                                  final lineUser = lineUsers[index];
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 8.0),
-                                    child: Text(
-                                      lineUser.displayName,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                      ),
+                              ...courseGroups.entries.map(
+                                (courseEntry) {
+                                  final courseName = courseEntry.key;
+                                  final indices = courseEntry.value;
+                                  Color courseColor;
+                                  switch (courseName) {
+                                    case 'ロボット':
+                                      courseColor = Colors.red;
+                                      break;
+                                    case 'サイエンス':
+                                      courseColor = Colors.green;
+                                      break;
+                                    case 'こどプロ':
+                                      courseColor = Colors.blue;
+                                      break;
+                                    default:
+                                      courseColor = Colors.grey;
+                                  }
+                                  return Container(
+                                    margin: EdgeInsets.only(top: 8),
+                                    padding: EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: courseColor.withAlpha(51),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              courseName,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: courseColor,
+                                              ),
+                                            ),
+                                            Text(
+                                              '${indices.length}/${classroom?.slots.firstWhere((slot) => slot.slotId == reservations[indices.first].slotId).capacity ?? 8}',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: courseColor,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        SingleChildScrollView(
+                                          scrollDirection: Axis.horizontal,
+                                          child: Row(
+                                            children: indices.map(
+                                              (index) {
+                                                final lineUser =
+                                                    lineUsers[index];
+                                                return Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                          top: 4.0, right: 8.0),
+                                                  child: Text(
+                                                    lineUser.displayName,
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ).toList(),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   );
                                 },
@@ -250,6 +320,9 @@ class _CalendarState extends State<Calendar> {
                       },
                     ).toList(),
                   ),
+                SizedBox(
+                  height: 50,
+                ),
               ],
             ),
           ),

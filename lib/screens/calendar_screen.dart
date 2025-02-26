@@ -1,7 +1,7 @@
 import 'package:educo_yoyaku/repositories/line_user_repository.dart';
 import 'package:educo_yoyaku/widgets/calendar.dart';
+import 'package:educo_yoyaku/widgets/drawer.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:educo_yoyaku/repositories/classroom_repository.dart';
 import 'package:educo_yoyaku/models/classroom.dart';
@@ -15,7 +15,6 @@ class CalendarScreen extends StatefulWidget {
 
 class _CalendarScreenState extends State<CalendarScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final _storage = const FlutterSecureStorage();
   final ClassroomRepository _classroomRepository = ClassroomRepository();
   final LineUserRepository lineUserRepository = LineUserRepository();
   Classroom? selectedClassroom;
@@ -39,61 +38,53 @@ class _CalendarScreenState extends State<CalendarScreen> {
     List<Classroom> classrooms = await _classroomRepository.getClassrooms();
     if (!mounted) return;
     showModalBottomSheet(
-      backgroundColor: Theme.of(context).secondaryHeaderColor,
+      backgroundColor: Colors.white, // 背景色を白に変更
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
+      ),
       context: context,
       builder: (BuildContext context) {
-        return ListView.builder(
-          itemCount: classrooms.length,
-          itemBuilder: (BuildContext context, int index) {
-            return Container(
-              decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 255, 247, 243),
-                borderRadius: index == 0
-                    ? BorderRadius.only(
-                        topLeft: Radius.circular(28),
-                        topRight: Radius.circular(28),
-                      )
-                    : BorderRadius.zero,
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).primaryColor,
-                  ),
+        return Container(
+          padding: EdgeInsets.symmetric(vertical: 10.0),
+          child: ListView.builder(
+            itemCount: classrooms.length,
+            itemBuilder: (BuildContext context, int index) {
+              return Container(
+                margin: EdgeInsets.symmetric(vertical: 5.0, horizontal: 10.0),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(15.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withAlpha(64),
+                      spreadRadius: 2,
+                      blurRadius: 5,
+                      offset: Offset(0, 0),
+                    ),
+                  ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withAlpha(128),
-                    spreadRadius: 2,
-                    blurRadius: 5,
-                    offset: Offset(0, 3),
+                child: ListTile(
+                  title: Text(
+                    classrooms[index].classroomName,
+                    style: GoogleFonts.kiwiMaru(
+                      color: Theme.of(context).primaryColor,
+                      fontSize: 18,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                ],
-              ),
-              child: ListTile(
-                title: Text(
-                  classrooms[index].classroomName,
-                  style: GoogleFonts.kiwiMaru(
-                      color: Theme.of(context).primaryColor),
-                  textAlign: TextAlign.center,
+                  onTap: () {
+                    setState(() {
+                      selectedClassroom = classrooms[index];
+                    });
+                    Navigator.pop(context);
+                  },
                 ),
-                onTap: () {
-                  setState(() {
-                    selectedClassroom = classrooms[index];
-                  });
-                  Navigator.pop(context);
-                },
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
-  }
-
-  void _logout(BuildContext context) async {
-    await _storage.write(key: 'isLoggedIn', value: 'false');
-    if (context.mounted) {
-      Navigator.pushReplacementNamed(context, '/login');
-    }
   }
 
   @override
@@ -125,7 +116,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ),
             onPressed: _showClassroomSelection,
             child: Text(
-              selectedClassroom?.classroomName ?? '選択してください',
+              selectedClassroom?.classroomName ?? '読み込み中',
               style: GoogleFonts.zenMaruGothic(
                 fontSize: 19,
                 color: Colors.white,
@@ -134,36 +125,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ],
       ),
-      drawer: Drawer(
-        backgroundColor: Theme.of(context).secondaryHeaderColor,
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: <Widget>[
-            SizedBox(
-              height: 150, // ここで高さを調整します
-              child: DrawerHeader(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).appBarTheme.backgroundColor,
-                ),
-                child: Text(
-                  'メニュー',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                  ),
-                ),
-              ),
-            ),
-            ListTile(
-              leading: Icon(Icons.logout, color: Theme.of(context).primaryColor,),
-              title: Text('ログアウト', style: TextStyle(color: Theme.of(context).primaryColor),),
-              onTap: () {
-                _logout(context);
-              },
-            ),
-          ],
-        ),
-      ),
+      drawer: CustomDrawer(),
       body: Center(
         child: SingleChildScrollView(
           child: Column(

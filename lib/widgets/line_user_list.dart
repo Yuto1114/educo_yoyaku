@@ -33,7 +33,10 @@ class _LineUserListState extends State<LineUserList> {
   Widget build(BuildContext context) {
     return Material(
       child: RefreshIndicator(
+        elevation: 0,
+        backgroundColor: Color.fromARGB(0, 0, 0, 0),
         onRefresh: refreshUserData,
+        
         child: ListView.builder(
           itemCount: users.length,
           itemBuilder: (BuildContext context, int index) {
@@ -44,7 +47,7 @@ class _LineUserListState extends State<LineUserList> {
                 radius: 23,
                 backgroundImage: NetworkImage(user.pictureUrl),
               ),
-              tileColor: index % 2 == 0 ? Colors.white : Colors.grey[300],
+              tileColor: index % 2 == 0 ? Colors.white : const Color.fromARGB(255, 235, 235, 235),
               title: Text(
                 user.displayName,
                 style: GoogleFonts.notoSansJp(),
