@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 
-/// 教室のスロット（時間枠）を表すモデルクラス
+/// 教室のスロット（予約時間枠）を表すモデルクラス
 class ClassroomSlot extends Equatable {
   final String slotId;
   final int capacity;

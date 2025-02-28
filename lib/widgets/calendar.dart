@@ -26,20 +26,41 @@ class Calendar extends StatefulWidget {
 
 class _CalendarState extends State<Calendar> {
   bool isShowingMordal = false;
+
+  // データをキャッシュするための変数
+  Future<List<Booking>>? _bookingsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // 初期化時に一度だけFutureを作成
+    _bookingsFuture = _getBookings(widget.classroom);
+  }
+
+  @override
+  void didUpdateWidget(Calendar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 教室が変わった場合のみデータを再取得
+    if (oldWidget.classroom.classroomId != widget.classroom.classroomId) {
+      _bookingsFuture = _getBookings(widget.classroom);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Booking>>(
-      future: _getBookings(context, widget.classroom),
+      future: _bookingsFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !isShowingMordal) {
           return Center(child: CircularProgressIndicator());
         } else if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
         } else {
+          // データ読み込み中でもモーダル表示中ならカレンダーを表示する（データがあれば使用、なければ空リストで）
+          final bookings = snapshot.data ?? [];
           return SizedBox(
-            height: widget.height ??
-                MediaQuery.of(context).size.height *
-                    0.8, // heightが指定されていない場合は画面の80%を使用
+            height: widget.height ?? MediaQuery.of(context).size.height * 0.8,
             width: MediaQuery.of(context).size.width * 0.95,
             child: Padding(
               padding: const EdgeInsets.all(0),
@@ -55,7 +76,7 @@ class _CalendarState extends State<Calendar> {
                         textStyle: GoogleFonts.kiwiMaru(),
                         backgroundColor: Theme.of(context).secondaryHeaderColor,
                       ),
-                      dataSource: BookingDataSource(snapshot.data!),
+                      dataSource: BookingDataSource(bookings),
                       monthViewSettings: MonthViewSettings(
                         appointmentDisplayMode:
                             MonthAppointmentDisplayMode.appointment,
@@ -83,12 +104,33 @@ class _CalendarState extends State<Calendar> {
                       onTap: (calendarTapDetails) async {
                         if (calendarTapDetails.targetElement ==
                                 CalendarElement.calendarCell &&
-                            isShowingMordal == false) {
-                          final reservations = await _getReservationsByDate(
-                              calendarTapDetails.date!);
-                          if (!context.mounted) return;
-                          _showReservationsModal(
-                              context, calendarTapDetails.date!, reservations);
+                            !isShowingMordal) {
+                          // モーダルを表示する前にフラグを立てる
+                          setState(() {
+                            isShowingMordal = true;
+                          });
+
+                          try {
+                            final reservations = await _getReservationsByDate(
+                                calendarTapDetails.date!);
+                            if (!context.mounted) {
+                              // コンテキストがなければフラグを戻して終了
+                              setState(() {
+                                isShowingMordal = false;
+                              });
+                              return;
+                            }
+
+                            _showReservationsModal(context,
+                                calendarTapDetails.date!, reservations);
+                          } finally {
+                            // 例外が発生しても必ずフラグを戻す
+                            if (mounted) {
+                              setState(() {
+                                isShowingMordal = false;
+                              });
+                            }
+                          }
                         }
                       },
                     ),
@@ -102,8 +144,8 @@ class _CalendarState extends State<Calendar> {
     );
   }
 
-  Future<List<Booking>> _getBookings(
-      BuildContext context, Classroom classroom) async {
+  // BuildContext パラメータを削除して、widgetから直接教室を取得するように修正
+  Future<List<Booking>> _getBookings(Classroom classroom) async {
     final reservationRepository = ReservationRepository();
     final reservations =
         await reservationRepository.getAllReservations(classroom);
@@ -147,7 +189,218 @@ class _CalendarState extends State<Calendar> {
 
   void _showReservationsModal(BuildContext context, DateTime date,
       List<Reservation> reservations) async {
-    isShowingMordal = true;
+    // まずモーダルを表示し、その中でデータ読み込みを行う
+    if (!context.mounted) return;
+
+    // モーダルを表示
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return FutureBuilder<Map<String, dynamic>>(
+          future: _loadReservationData(date, reservations),
+          builder: (context, snapshot) {
+            // データ読み込み中
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Container(
+                padding: EdgeInsets.all(16),
+                width: MediaQuery.of(context).size.width,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${date.year}年${date.month}月${date.day}日の予約',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 32),
+                    Center(child: CircularProgressIndicator()),
+                    SizedBox(height: 32),
+                  ],
+                ),
+              );
+            }
+
+            // エラー発生時
+            if (snapshot.hasError) {
+              return Container(
+                padding: EdgeInsets.all(16),
+                width: MediaQuery.of(context).size.width,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${date.year}年${date.month}月${date.day}日の予約',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    Text('データの読み込みに失敗しました'),
+                    SizedBox(height: 35),
+                  ],
+                ),
+              );
+            }
+
+            // データ読み込み完了
+            final data = snapshot.data!;
+            final lineUsers = data['lineUsers'] as List<LineUser>;
+            final classroom = data['classroom'] as Classroom?;
+            final groupedReservations = data['groupedReservations']
+                as Map<DateTime, Map<String, List<int>>>;
+
+            return Container(
+              padding: EdgeInsets.all(16),
+              width: MediaQuery.of(context).size.width,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${date.year}年${date.month}月${date.day}日の予約',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    if (reservations.isEmpty)
+                      Column(
+                        children: [
+                          Text('予約はありません'),
+                          SizedBox(height: 35),
+                        ],
+                      )
+                    else
+                      Column(
+                        children: groupedReservations.entries.map(
+                          (entry) {
+                            final startTime = entry.key;
+                            final courseGroups = entry.value;
+                            return Container(
+                              width: MediaQuery.of(context).size.width * 0.8,
+                              margin: EdgeInsets.symmetric(vertical: 8),
+                              padding: EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${startTime.hour}:${startTime.minute.toString().padLeft(2, '0')}',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  ...courseGroups.entries.map(
+                                    (courseEntry) {
+                                      final courseName = courseEntry.key;
+                                      final indices = courseEntry.value;
+                                      Color courseColor;
+                                      switch (courseName) {
+                                        case 'ロボット':
+                                          courseColor = Colors.red;
+                                          break;
+                                        case 'サイエンス':
+                                          courseColor = Colors.green;
+                                          break;
+                                        case 'こどプロ':
+                                          courseColor = Colors.blue;
+                                          break;
+                                        default:
+                                          courseColor = Colors.grey;
+                                      }
+                                      return Container(
+                                        margin: EdgeInsets.only(top: 8),
+                                        padding: EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: courseColor.withAlpha(51),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                Text(
+                                                  courseName,
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: courseColor,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  '${indices.length}/${classroom?.slots.firstWhere((slot) => slot.slotId == reservations[indices.first].slotId).capacity ?? 8}',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: courseColor,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            SingleChildScrollView(
+                                              scrollDirection: Axis.horizontal,
+                                              child: Row(
+                                                children: indices.map(
+                                                  (index) {
+                                                    final lineUser =
+                                                        lineUsers[index];
+                                                    return Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                              top: 4.0,
+                                                              right: 8.0),
+                                                      child: Text(
+                                                        lineUser.displayName,
+                                                        style: TextStyle(
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                ).toList(),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ).toList(),
+                      ),
+                    SizedBox(
+                      height: 50,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // データ読み込み処理を別関数に分離
+  Future<Map<String, dynamic>> _loadReservationData(
+      DateTime date, List<Reservation> reservations) async {
     final List<LineUser> lineUsers = [];
     final classroomRepository = ClassroomRepository();
     final classroom = await classroomRepository
@@ -186,150 +439,11 @@ class _CalendarState extends State<Calendar> {
       }
     }
 
-    if (!context.mounted) return;
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return Container(
-          padding: EdgeInsets.all(16),
-          width: MediaQuery.of(context).size.width,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${date.year}年${date.month}月${date.day}日の予約',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 16),
-                if (reservations.isEmpty)
-                  Column(
-                    children: [
-                      Text('予約はありません'),
-                      SizedBox(height: 35),
-                    ],
-                  )
-                else
-                  Column(
-                    children: groupedReservations.entries.map(
-                      (entry) {
-                        final startTime = entry.key;
-                        final courseGroups = entry.value;
-                        return Container(
-                          width: MediaQuery.of(context).size.width * 0.8,
-                          margin: EdgeInsets.symmetric(vertical: 8),
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${startTime.hour}:${startTime.minute.toString().padLeft(2, '0')}',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              ...courseGroups.entries.map(
-                                (courseEntry) {
-                                  final courseName = courseEntry.key;
-                                  final indices = courseEntry.value;
-                                  Color courseColor;
-                                  switch (courseName) {
-                                    case 'ロボット':
-                                      courseColor = Colors.red;
-                                      break;
-                                    case 'サイエンス':
-                                      courseColor = Colors.green;
-                                      break;
-                                    case 'こどプロ':
-                                      courseColor = Colors.blue;
-                                      break;
-                                    default:
-                                      courseColor = Colors.grey;
-                                  }
-                                  return Container(
-                                    margin: EdgeInsets.only(top: 8),
-                                    padding: EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: courseColor.withAlpha(51),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              courseName,
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.bold,
-                                                color: courseColor,
-                                              ),
-                                            ),
-                                            Text(
-                                              '${indices.length}/${classroom?.slots.firstWhere((slot) => slot.slotId == reservations[indices.first].slotId).capacity ?? 8}',
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.bold,
-                                                color: courseColor,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        SingleChildScrollView(
-                                          scrollDirection: Axis.horizontal,
-                                          child: Row(
-                                            children: indices.map(
-                                              (index) {
-                                                final lineUser =
-                                                    lineUsers[index];
-                                                return Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                          top: 4.0, right: 8.0),
-                                                  child: Text(
-                                                    lineUser.displayName,
-                                                    style: TextStyle(
-                                                      fontSize: 14,
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                            ).toList(),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ).toList(),
-                  ),
-                SizedBox(
-                  height: 50,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-    isShowingMordal = false;
+    return {
+      'lineUsers': lineUsers,
+      'classroom': classroom,
+      'groupedReservations': groupedReservations,
+    };
   }
 }
 
