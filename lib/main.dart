@@ -5,8 +5,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/rendering.dart';
 
 void main() async {
+  debugPaintSizeEnabled = false;
   WidgetsFlutterBinding.ensureInitialized();
 
   // Firebase初期化
@@ -65,7 +67,7 @@ class MyApp extends StatelessWidget {
         ),
 
         // カードのテーマ
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           elevation: 2,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -98,3 +100,4 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+

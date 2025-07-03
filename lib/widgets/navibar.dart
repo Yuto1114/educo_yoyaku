@@ -1,6 +1,7 @@
 import 'package:educo_yoyaku/screens/attendance_screen.dart';
 import 'package:educo_yoyaku/screens/calendar_screen.dart';
 import 'package:educo_yoyaku/screens/line_user_list_screen.dart';
+import 'package:educo_yoyaku/screens/make_reservation_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -14,7 +15,7 @@ class Navibar extends StatefulWidget {
 class _NavibarState extends State<Navibar> {
   static const _screens = [
     CalendarScreen(),
-    AttendanceScreen(),
+    MakeReservationScreen(),
     LineUserListScreen(),
   ];
 

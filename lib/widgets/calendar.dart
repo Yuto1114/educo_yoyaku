@@ -26,41 +26,20 @@ class Calendar extends StatefulWidget {
 
 class _CalendarState extends State<Calendar> {
   bool isShowingMordal = false;
-
-  // データをキャッシュするための変数
-  Future<List<Booking>>? _bookingsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    // 初期化時に一度だけFutureを作成
-    _bookingsFuture = _getBookings(widget.classroom);
-  }
-
-  @override
-  void didUpdateWidget(Calendar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // 教室が変わった場合のみデータを再取得
-    if (oldWidget.classroom.classroomId != widget.classroom.classroomId) {
-      _bookingsFuture = _getBookings(widget.classroom);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Booking>>(
-      future: _bookingsFuture,
+      future: _getBookings(context, widget.classroom),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            !isShowingMordal) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator());
         } else if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
         } else {
-          // データ読み込み中でもモーダル表示中ならカレンダーを表示する（データがあれば使用、なければ空リストで）
-          final bookings = snapshot.data ?? [];
           return SizedBox(
-            height: widget.height ?? MediaQuery.of(context).size.height * 0.8,
+            height: widget.height ??
+                MediaQuery.of(context).size.height *
+                    0.8, // heightが指定されていない場合は画面の80%を使用
             width: MediaQuery.of(context).size.width * 0.95,
             child: Padding(
               padding: const EdgeInsets.all(0),
@@ -76,7 +55,7 @@ class _CalendarState extends State<Calendar> {
                         textStyle: GoogleFonts.kiwiMaru(),
                         backgroundColor: Theme.of(context).secondaryHeaderColor,
                       ),
-                      dataSource: BookingDataSource(bookings),
+                      dataSource: BookingDataSource(snapshot.data!),
                       monthViewSettings: MonthViewSettings(
                         appointmentDisplayMode:
                             MonthAppointmentDisplayMode.appointment,
@@ -104,33 +83,12 @@ class _CalendarState extends State<Calendar> {
                       onTap: (calendarTapDetails) async {
                         if (calendarTapDetails.targetElement ==
                                 CalendarElement.calendarCell &&
-                            !isShowingMordal) {
-                          // モーダルを表示する前にフラグを立てる
-                          setState(() {
-                            isShowingMordal = true;
-                          });
-
-                          try {
-                            final reservations = await _getReservationsByDate(
-                                calendarTapDetails.date!);
-                            if (!context.mounted) {
-                              // コンテキストがなければフラグを戻して終了
-                              setState(() {
-                                isShowingMordal = false;
-                              });
-                              return;
-                            }
-
-                            _showReservationsModal(context,
-                                calendarTapDetails.date!, reservations);
-                          } finally {
-                            // 例外が発生しても必ずフラグを戻す
-                            if (mounted) {
-                              setState(() {
-                                isShowingMordal = false;
-                              });
-                            }
-                          }
+                            isShowingMordal == false) {
+                          final reservations = await _getReservationsByDate(
+                              calendarTapDetails.date!);
+                          if (!context.mounted) return;
+                          _showReservationsModal(
+                              context, calendarTapDetails.date!, reservations);
                         }
                       },
                     ),
@@ -144,8 +102,8 @@ class _CalendarState extends State<Calendar> {
     );
   }
 
-  // BuildContext パラメータを削除して、widgetから直接教室を取得するように修正
-  Future<List<Booking>> _getBookings(Classroom classroom) async {
+  Future<List<Booking>> _getBookings(
+      BuildContext context, Classroom classroom) async {
     final reservationRepository = ReservationRepository();
     final reservations =
         await reservationRepository.getAllReservations(classroom);
@@ -189,261 +147,262 @@ class _CalendarState extends State<Calendar> {
 
   void _showReservationsModal(BuildContext context, DateTime date,
       List<Reservation> reservations) async {
-    // まずモーダルを表示し、その中でデータ読み込みを行う
+    isShowingMordal = true;
+    final Map<String, List<Map<String, dynamic>>> groupedReservations = {};
+    final classroomRepository = ClassroomRepository();
+
+    // 予約を開始時間でグループ化
+    for (var reservation in reservations) {
+      final lineUser =
+          await widget.lineUserRepository.getUser(reservation.userId);
+      final classroom =
+          await classroomRepository.getClassroomById(reservation.classroomId);
+      final classroomName = classroom?.classroomName ?? 'Unknown Classroom';
+
+      // 時間のフォーマット (HH:MM形式)
+      final timeKey =
+          '${reservation.startTime.hour.toString().padLeft(2, '0')}:${reservation.startTime.minute.toString().padLeft(2, '0')}';
+
+      if (!groupedReservations.containsKey(timeKey)) {
+        groupedReservations[timeKey] = [];
+      }
+
+      groupedReservations[timeKey]!.add({
+        'reservation': reservation,
+        'lineUser': lineUser,
+        'classroomName': classroomName,
+      });
+    }
+
+    // 時間でソート
+    final sortedTimes = groupedReservations.keys.toList()..sort();
+
     if (!context.mounted) return;
 
-    // モーダルを表示
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true, // モーダルの高さを内容に合わせる
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) {
-        return FutureBuilder<Map<String, dynamic>>(
-          future: _loadReservationData(date, reservations),
-          builder: (context, snapshot) {
-            // データ読み込み中
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Container(
-                padding: EdgeInsets.all(16),
-                width: MediaQuery.of(context).size.width,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${date.year}年${date.month}月${date.day}日の予約',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 32),
-                    Center(child: CircularProgressIndicator()),
-                    SizedBox(height: 32),
-                  ],
-                ),
-              );
-            }
-
-            // エラー発生時
-            if (snapshot.hasError) {
-              return Container(
-                padding: EdgeInsets.all(16),
-                width: MediaQuery.of(context).size.width,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${date.year}年${date.month}月${date.day}日の予約',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    Text('データの読み込みに失敗しました'),
-                    SizedBox(height: 35),
-                  ],
-                ),
-              );
-            }
-
-            // データ読み込み完了
-            final data = snapshot.data!;
-            final lineUsers = data['lineUsers'] as List<LineUser>;
-            final classroom = data['classroom'] as Classroom?;
-            final groupedReservations = data['groupedReservations']
-                as Map<DateTime, Map<String, List<int>>>;
-
+        final theme = Theme.of(context);
+        return DraggableScrollableSheet(
+          initialChildSize: 0.8, // 画面の80%の高さで表示に変更
+          minChildSize: 0.4, // 最小サイズも40%に拡大
+          maxChildSize: 0.95, // 最大サイズは95%
+          expand: false,
+          builder: (_, scrollController) {
             return Container(
-              padding: EdgeInsets.all(16),
-              width: MediaQuery.of(context).size.width,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${date.year}年${date.month}月${date.day}日の予約',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ドラッグハンドル
+                  Container(
+                    width: 40,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    SizedBox(height: 16),
-                    if (reservations.isEmpty)
-                      Column(
-                        children: [
-                          Text('予約はありません'),
-                          SizedBox(height: 35),
-                        ],
-                      )
-                    else
-                      Column(
-                        children: groupedReservations.entries.map(
-                          (entry) {
-                            final startTime = entry.key;
-                            final courseGroups = entry.value;
-                            return Container(
-                              width: MediaQuery.of(context).size.width * 0.8,
-                              margin: EdgeInsets.symmetric(vertical: 8),
-                              padding: EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
+                  ),
+                  const SizedBox(height: 16),
+                  // タイトル
+                  Text(
+                    '${date.year}年${date.month}月${date.day}日の予約',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // 予約リスト
+                  Expanded(
+                    child: reservations.isEmpty
+                        ? const Center(child: Text('予約はありません'))
+                        : ListView.builder(
+                            controller: scrollController,
+                            itemCount: sortedTimes.length,
+                            itemBuilder: (context, timeIndex) {
+                              final timeKey = sortedTimes[timeIndex];
+                              final reservationsAtTime =
+                                  groupedReservations[timeKey]!;
+
+                              // コースごとのグループ化
+                              final Map<String, List<Map<String, dynamic>>>
+                                  courseGroups = {};
+                              for (var item in reservationsAtTime) {
+                                final courseName =
+                                    (item['reservation'] as Reservation)
+                                        .courseName;
+                                if (!courseGroups.containsKey(courseName)) {
+                                  courseGroups[courseName] = [];
+                                }
+                                courseGroups[courseName]!.add(item);
+                              }
+
+                              return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    '${startTime.hour}:${startTime.minute.toString().padLeft(2, '0')}',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
+                                  // 時間ヘッダー
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 8, horizontal: 12),
+                                    margin: const EdgeInsets.only(
+                                        bottom: 8, top: 16),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          theme.primaryColor.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                          color: theme.primaryColor
+                                              .withOpacity(0.5)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.access_time,
+                                            size: 18,
+                                            color: theme.primaryColor),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          timeKey,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: theme.primaryColor,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  ...courseGroups.entries.map(
-                                    (courseEntry) {
-                                      final courseName = courseEntry.key;
-                                      final indices = courseEntry.value;
-                                      Color courseColor;
-                                      switch (courseName) {
-                                        case 'ロボット':
-                                          courseColor = Colors.red;
-                                          break;
-                                        case 'サイエンス':
-                                          courseColor = Colors.green;
-                                          break;
-                                        case 'こどプロ':
-                                          courseColor = Colors.blue;
-                                          break;
-                                        default:
-                                          courseColor = Colors.grey;
-                                      }
-                                      return Container(
-                                        margin: EdgeInsets.only(top: 8),
-                                        padding: EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: courseColor.withAlpha(51),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
+
+                                  // コースごとのグループ
+                                  ...courseGroups.entries.map((courseEntry) {
+                                    final courseName = courseEntry.key;
+                                    final courseItems = courseEntry.value;
+                                    // より鮮明な色分けを実装
+                                    final courseColor =
+                                        _getCourseColor(courseName);
+
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 16),
+                                      decoration: BoxDecoration(
+                                        color: courseColor,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                            color: courseColor.withOpacity(0.7),
+                                            width: 1.5),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          // コース名ヘッダー
+                                          Padding(
+                                            padding: const EdgeInsets.all(8),
+                                            child: Row(
                                               children: [
-                                                Text(
-                                                  courseName,
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: courseColor,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  '${indices.length}/${classroom?.slots.firstWhere((slot) => slot.slotId == reservations[indices.first].slotId).capacity ?? 8}',
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: courseColor,
+                                                Icon(Icons.school,
+                                                    color: theme.primaryColor),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    courseName,
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: theme.primaryColor,
+                                                    ),
                                                   ),
                                                 ),
                                               ],
                                             ),
-                                            SingleChildScrollView(
-                                              scrollDirection: Axis.horizontal,
-                                              child: Row(
-                                                children: indices.map(
-                                                  (index) {
-                                                    final lineUser =
-                                                        lineUsers[index];
-                                                    return Padding(
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                              top: 4.0,
-                                                              right: 8.0),
-                                                      child: Text(
-                                                        lineUser.displayName,
-                                                        style: TextStyle(
-                                                          fontSize: 14,
-                                                        ),
-                                                      ),
-                                                    );
-                                                  },
-                                                ).toList(),
-                                              ),
+                                          ),
+
+                                          // 予約者リスト（名前のみの簡素化バージョン）
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 16, vertical: 8),
+                                            child: Wrap(
+                                              spacing: 8,
+                                              runSpacing: 8,
+                                              children: courseItems.map((item) {
+                                                final lineUser =
+                                                    item['lineUser']
+                                                        as LineUser?;
+
+                                                if (lineUser == null) {
+                                                  return const Chip(
+                                                    label: Text('不明なユーザー'),
+                                                    backgroundColor:
+                                                        Colors.white70,
+                                                  );
+                                                }
+
+                                                return Chip(
+                                                  label: Text(
+                                                    lineUser.displayName,
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                  backgroundColor: Colors.white
+                                                      .withOpacity(0.9),
+                                                  side: BorderSide(
+                                                    color: courseColor
+                                                        .withOpacity(0.5),
+                                                    width: 1,
+                                                  ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            16),
+                                                  ),
+                                                );
+                                              }).toList(),
                                             ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
                                 ],
-                              ),
-                            );
-                          },
-                        ).toList(),
-                      ),
-                    SizedBox(
-                      height: 50,
-                    ),
-                  ],
-                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
             );
           },
         );
       },
     );
+
+    isShowingMordal = false;
   }
 
-  // データ読み込み処理を別関数に分離
-  Future<Map<String, dynamic>> _loadReservationData(
-      DateTime date, List<Reservation> reservations) async {
-    final List<LineUser> lineUsers = [];
-    final classroomRepository = ClassroomRepository();
-    final classroom = await classroomRepository
-        .getClassroomWithSlotsById(widget.classroom.classroomId);
+  // コースごとの色を生成するメソッドを更新
+  Color _getCourseColor(String courseName) {
+    // 定義済みの色のリスト
+    final List<Color> courseColors = [
+      Color(0xFFF8BBD0), // ピンク
+      Color(0xFFBBDEFB), // 水色
+      Color(0xFFC8E6C9), // 緑
+      Color(0xFFFFE0B2), // オレンジ
+      Color(0xFFE1BEE7), // 紫
+      Color(0xFFFFCCBC), // サーモンピンク
+      Color(0xFFCFD8DC), // グレー
+      Color(0xFFFFECB3), // 黄色
+      Color(0xFFD7CCC8), // 茶色
+      Color(0xFFB3E5FC), // 明るい青
+    ];
 
-    for (var reservation in reservations) {
-      final lineUser =
-          await widget.lineUserRepository.getUser(reservation.userId);
-      if (lineUser != null) {
-        lineUsers.add(lineUser);
-      }
-    }
-
-    // 予約を開始時間でグループ化
-    final Map<DateTime, Map<String, List<int>>> groupedReservations = {};
-    for (var i = 0; i < reservations.length; i++) {
-      final startTime = DateTime(
-        reservations[i].startTime.year,
-        reservations[i].startTime.month,
-        reservations[i].startTime.day,
-        reservations[i].startTime.hour,
-        reservations[i].startTime.minute,
-      );
-      final courseName = reservations[i].courseName;
-
-      if (groupedReservations.containsKey(startTime)) {
-        if (groupedReservations[startTime]!.containsKey(courseName)) {
-          groupedReservations[startTime]![courseName]!.add(i);
-        } else {
-          groupedReservations[startTime]![courseName] = [i];
-        }
-      } else {
-        groupedReservations[startTime] = {
-          courseName: [i]
-        };
-      }
-    }
-
-    return {
-      'lineUsers': lineUsers,
-      'classroom': classroom,
-      'groupedReservations': groupedReservations,
-    };
+    // コース名のハッシュ値から色を選択
+    final hash = courseName.hashCode.abs();
+    return courseColors[hash % courseColors.length];
   }
 }
 

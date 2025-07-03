@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:educo_yoyaku/repositories/classroom_repository.dart';
 import 'package:educo_yoyaku/models/classroom.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -22,7 +23,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   void initState() {
     super.initState();
-    _loadClassrooms();
+    _loadSelectedClassroomFromLocalStorage();
   }
 
   Future<void> _loadClassrooms() async {
@@ -32,6 +33,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
         selectedClassroom = classrooms.first;
       });
     }
+  }
+
+  // 教室選択を前回の履歴から復元
+  Future<void> _loadSelectedClassroomFromLocalStorage() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? classroomId = prefs.getString('selectedClassroomId');
+    if (classroomId != null) {
+      Classroom? classroom =
+          await _classroomRepository.getClassroomById(classroomId);
+      setState(() {
+        selectedClassroom = classroom;
+      });
+    } else {
+      _loadClassrooms();
+    }
+  }
+
+  // 教室選択を履歴として保存
+  Future<void> _saveSelectedClassroomToLocalStorage(Classroom classroom) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selectedClassroomId', classroom.classroomId);
   }
 
   void _showClassroomSelection() async {
@@ -75,6 +97,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   onTap: () {
                     setState(() {
                       selectedClassroom = classrooms[index];
+                      if (selectedClassroom != null) {
+                        _saveSelectedClassroomToLocalStorage(
+                            selectedClassroom!);
+                      }
                     });
                     Navigator.pop(context);
                   },
