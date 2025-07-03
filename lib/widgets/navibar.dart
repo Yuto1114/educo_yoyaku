@@ -1,4 +1,3 @@
-import 'package:educo_yoyaku/screens/attendance_screen.dart';
 import 'package:educo_yoyaku/screens/calendar_screen.dart';
 import 'package:educo_yoyaku/screens/line_user_list_screen.dart';
 import 'package:educo_yoyaku/screens/make_reservation_screen.dart';

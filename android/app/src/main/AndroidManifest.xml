@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="Educo"
+        android:label="educo_yoyaku"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
